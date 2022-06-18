@@ -1,0 +1,8 @@
+<!-- Apacheの設定を変更するファイル -->
+<!-- 指定されたファイルが存在すればそのファイルを読み込み -->
+<!-- なければ全てがindex.phpを通る -->
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
