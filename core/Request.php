@@ -17,6 +17,7 @@ class Request
     return false;
   }
 
+  //HTTPメソッドがGETならGETを返す
   public function getGet($name, $default = null)
   {
     if(isset($_GET[$name])){
@@ -25,6 +26,7 @@ class Request
     return $default;
   }
 
+  //HTTPメソッドがPOSTならPOSTを返す
   public function getPost($name, $default = null)
   {
     if(isset($_POST[$name])){
@@ -88,7 +90,7 @@ class Request
     // ファイルのパスから指定したディレクトリ分遡って親ディレクトリのパスを返すメソッド
   }
   
-  //
+  //リクエストのパスを返す
   public function getPathInfo()
   {
     $base_url = $this->getBaseUrl();

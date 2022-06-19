@@ -53,10 +53,10 @@ class Session
 
       self::$sessionIdRegenerated = true;
     }
-
-    
+    //一度のリクエスト中に複数回呼び出されることがないように静的プロパティでチェック
   }
 
+  // ログイン状態の制御、_authenticatedというキーでログインしているかどうかのフラグを格納
   public function setAuthenticated($bool)
   {
     $this->set('_authenticated', (bool)$bool);
@@ -66,6 +66,6 @@ class Session
 
   public function isAuthenticated()
   {
-    return $this->get('authenticated', false);
+    return $this->get('_authenticated', false);
   }
 }
