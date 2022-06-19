@@ -70,7 +70,7 @@ abstract class Application
   {
     return $this->session;
   }
-  
+
   public function getDbManager()
   {
     return $this->db_manager;
@@ -97,24 +97,53 @@ abstract class Application
   }
 
   /*
-  コントローラーの呼び出しと実行 
+  コントローラーの呼び出しと実行
   全体の処理の流れを管理する、コントローラーを呼び出してアクションを実行する処理
   */
 
   //Routerからコントローラーを特定しレスポンスの送信を行うまで担当
   public function run()
   {
-    $params = $this->router->resolve($this->request->getPathInfo());
-    if($params === false){
-      // todo-A
+    try{
+      //Routerクラスのresolve()メソッドを呼び出してルーティングパラメータを取得し、
+      //コントローラー名とアクション名を特定する
+      $params = $this->router->resolve($this->request->getPathInfo());
+      if($params === false){
+        throw new HttpNotFoundException('No route found for ' . $this->request->getPathInfo());
+      }
+
+      $controller = $params['controller'];
+      $action = $params['action'];
+
+      // 下のメソッドで実行する
+      $this->runAction($controller, $action, $params);
+    }catch(HttpNotFoundException $e){
+      $this->render404Page($e);
     }
 
-    $controller = $params['controller'];
-    $action = $params['action'];
-
-    $this->runAction($controller, $action, $params);
-
     $this->response->send();
+  }
+
+  protected function render404Page($e)
+  {
+    $this->response->setStatusCode(404, 'Not Found');
+    $message = $this->isDebugMode() ? $e->getMessage() : 'Page not found.';
+    $message = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+
+    $this->response->setContent(<<<EOF
+      <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Trasitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+      <html>
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>404</title>
+      </head>
+      <body>
+        {$message}
+      </body>
+      </html>
+      EOF
+    );
   }
 
   // 実際にアクションを実行する担当
@@ -124,23 +153,28 @@ abstract class Application
 
     $controller = $this->findController($controller_class);
     if($controller === false){
-      //todo-B
+      throw new HttpNotFoundException($controller_class . 'controller is not found.');
     }
 
     $content = $controller->run($action, $params);
 
     $this->response->setContent($content);
+
+    // ~ucfirstメソッド~
+    //先頭の文字を大文字に変える関数
+    // ルーティングでは小文字のため
   }
 
   // メソッドの中でコントローラークラスを生成する担当
   public function findController($controller_class)
   {
-    if(!class_exists($controller_class)){
+    if(!class_exists($controller_class)){//コントローラークラスが読み込まれていない場合、クラスファイルを読み込む
       $controller_file = $this->getControllerDir() . '/' . $controller_class . '.php';
+      // ディレクトリ/コントローラー名/.php
       if(!is_readable($controller_file)){
-        return false;
+        return false;//なければ
       }else{
-        require_once $controller_file;
+        require_once $controller_file;//あれば読み込む
 
         if(!class_exists($controller_class)){
           return false;
@@ -148,7 +182,10 @@ abstract class Application
       }
     }
 
-    return new $controller_class($this);
+    return new $controller_class($this);//
+
+    // ~class_exists()~
+    // クラスが定義済みかどうかを確認する
   }
 
 }
