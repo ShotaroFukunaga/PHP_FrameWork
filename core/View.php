@@ -2,40 +2,40 @@
 
 class view
 {
-  protected $base_dir;//viewファイルを格納するディレクトリまでの絶対パス
-  protected $defaults;//ビューファイルに変数を渡す際にデフォルト値を設定
+  protected $base_dir;//viewディレクトリまでの絶対パス
+  protected $defaults;//ビューファイルに渡す変数にデフォルト値を設定、読み込んだ全てのファイルで利用したい値がある場合このプロパティに設定する
   protected $layout_variables = array();
 
+  //上記プロパティに格納
   public function __construct($base_dir, $defaults = array())
   {
     $this->base_dir = $base_dir;
     $this->defaults = $defaults;
   }
 
-  //$layout_variableプロパティに値を設定するメソッド
+  //Layoutファイルとして設定する
   public function setLayoutVar($name, $value)
   {
     $this->layout_variables[$name] = $value;
   }
 
   // viewファイル内で別のviewファイルの読み込む
-  //メソッド内で定義している変数は全てアンダーバーをつけ、変数展開時の名前衝突を避ける
-  public function render($_path, $_variables = array(), $_layout = false)
-  {//第一：viewファイルのパス、第二：viewファイルに渡す変数、第三：layoutファイル名の指定（Controllerクラスから呼び出された時だけ）
+  public function render($_path, $_variables = array(), $_layout = false)//メソッド内の変数は全て'_'を付け、変数展開時の名前衝突を避ける('_'に特別な機能がある訳ではない)
+  {//第一：viewファイルのパス、第二：viewファイルに渡す配列、第三：layoutファイル名の指定（Controllerクラスから呼び出された時だけ）
     $_file = $this->base_dir . '/' . $_path . '.php';
 
     extract(array_merge($this->defaults, $_variables));//配列を連結
 
     ob_start();//アウトプットバッファリングを開始
-    ob_implicit_flush(0);//バッファの上限でバッファの内容を吐き出す機能、0でoff
+    ob_implicit_flush(0);//バッファの上限で内容をゲロする機能、0でoff
 
-    require $_file;
+    require $_file;//この時点でアウトプットバッファリングしてないと出力されちまう
 
     $content = ob_get_clean();//バッファの内容を取得し、バッファをクリーン、アウトプットバッファを終了
 
-    if($_layout){//レイアウト名が指定されている場合、array_mergeして再度render()メソッドを読びだす
-      $content = $this->render($_layout,
-        array_merge($this->layout_variables, array(
+    if($_layout){//レイアウト名が指定されている場合、
+      $content = $this->render($_layout,//下記の引数に修正してrender()メソッドを読びだす
+        array_merge($this->layout_variables, array(//array_mergeして,[$layout_variables => ['_content' => $content]]という形式
           '_content' => $content,//変数に_contentというキーで先に読み込んだviewファイルの内容を渡している
           // $_content変数に展開され内容を出力することで1つのHTMLファイルになる
           )

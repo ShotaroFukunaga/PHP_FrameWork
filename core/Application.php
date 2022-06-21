@@ -18,6 +18,7 @@ abstract class Application
     $this->configure();
   }
 
+  //デバックモードに応じてエラーの表示を変更
   protected function setDebugMode($debug)
   {
     if($debug){
@@ -28,6 +29,13 @@ abstract class Application
       $this->debug = false;
       ini_set('display_errors', 0);
     }
+
+    //ini_set() — 設定オプションの値を設定する
+
+    /*error_reporting()*
+    出力する PHP エラーの種類を設定する:https://www.php.net/manual/ja/function.error-reporting.php
+    全ての PHP エラーを表示するerror_reporting(-1);
+    */
   }
 
   // クラスの初期化処理
@@ -37,6 +45,7 @@ abstract class Application
     $this->response = new Response();
     $this->session = new Session();
     $this->db_manager = new DbManager();
+    //インスタンスを作成するのにルーティング定義用の配列が必要なのでregisterRoutes(このクラス)を呼び出す
     $this->router = new Router($this->registerRoutes());
   }
 
@@ -46,11 +55,12 @@ abstract class Application
 
   }
 
-  //アプリケーションのルートディレクトリへのパスを返すメソッド、
-  // アプリケーションごとに設定するように抽象メソッドとして定義
+  //~abstract:抽象メソッド~ 継承先で必ず定義しないとPHPが怒る
+  //アプリケーションのルートディレクトリへのパスを返すメソッド、を継承先で定義
   abstract public function getRootDir();
-
+  //抽象メソッドとしておいて継承先でルーティング定義配列の定義を行う
   abstract protected function registerRoutes();
+
 
   public function isDebugMode()
   {
@@ -97,17 +107,12 @@ abstract class Application
     return $this->getRootDir() . '/web';
   }
 
-  /*
-  コントローラーの呼び出しと実行
-  全体の処理の流れを管理する、コントローラーを呼び出してアクションを実行する処理
-  */
-
-  //Routerからコントローラーを特定しレスポンスの送信を行うまで担当
+  /*コントローラーの呼び出しとアクションの実行*/
+  //Routerからコントローラーを特定しレスポンスの送信を行う
   public function run()
   {
     try{
-      //Routerクラスのresolve()メソッドを呼び出してルーティングパラメータを取得し、
-      //コントローラー名とアクション名を特定する
+      //Routerクラスのresolve()でコントローラー名とアクション名を取得し特定する
       $params = $this->router->resolve($this->request->getPathInfo());
       if($params === false){
         throw new HttpNotFoundException('No route found for ' . $this->request->getPathInfo());
@@ -118,21 +123,69 @@ abstract class Application
 
       // 下のメソッドで実行する
       $this->runAction($controller, $action, $params);
-    }catch(HttpNotFoundException $e){
+    }catch(HttpNotFoundException $e){//ページがなければ
       $this->render404Page($e);
-    }catch(UnauthorizedActionException $e){
+    }catch(UnauthorizedActionException $e){//ログインしていなければ
       list($controller, $action) = $this->login_action;
       $this->runAction($controller, $action);
     }
+    /*try/catch*
+      発生した例外を補足する構文
+    */
 
     $this->response->send();
   }
 
+  // 上記関数で特定ができればアクションを実行
+  public function runAction($controller_name, $action, $params = array())
+  {//1.user 2.show 3.[user] => ':controller/show' みたいな感じな引数
+    $controller_class = ucfirst($controller_name) . 'Controller';//先頭１文字大文字して連結
+
+    $controller = $this->findController($controller_class);
+    if($controller === false){//falseだったら
+      throw new HttpNotFoundException($controller_class . 'controller is not found.');
+    }
+
+    $content = $controller->run($action, $params);
+    //帰ってきたコントローラーインスタンスの関数run(実際にアクションする)を実行
+
+    $this->response->setContent($content);
+    //responseクラスのsetContent(クライアントに返す内容を格納する関数)
+
+    // ~ucfirstメソッド~
+    //先頭の文字を大文字に変える関数
+    // ルーティングでは小文字のため
+  }
+
+  //コントローラークラスが読み込まれていない場合、クラスファイルを読み込み、インスタンスを作成して返す
+  public function findController($controller_class)
+  {
+    if(!class_exists($controller_class)){//コントローラークラスが読み込まれていない場合、クラスファイルを読み込む
+      $controller_file = $this->getControllerDir() . '/' . $controller_class . '.php';
+      // ディレクトリ/コントローラー名/.php：User/UserController.php
+      if(!is_readable($controller_file)){
+        return false;//なければ
+      }else{
+        require_once $controller_file;//あれば読み込む
+
+        if(!class_exists($controller_class)){
+          return false;//なんか読み込めなければ
+        }
+      }
+    }
+
+    return new $controller_class($this);//new UserController(applicationクラス)
+
+    // ~class_exists()~
+    // クラスが定義済みかどうかを確認する
+  }
+
+  //ページが存在しない例外
   protected function render404Page($e)
   {
     $this->response->setStatusCode(404, 'Not Found');
-    $message = $this->isDebugMode() ? $e->getMessage() : 'Page not found.';
-    $message = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    $message = $this->isDebugMode() ? $e->getMessage() : 'Page not found.';//デバックモードならエラーメッセージ：そうでないなら左のメッセージ
+    $message = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');//文字列にエスケープ
 
     $this->response->setContent(<<<EOF
       <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Trasitional//EN"
@@ -148,48 +201,9 @@ abstract class Application
       </html>
       EOF
     );
-  }
-
-  // 実際にアクションを実行する担当
-  public function runAction($controller_name, $action, $params = array())
-  {
-    $controller_class = ucfirst($controller_name) . 'Controller';
-
-    $controller = $this->findController($controller_class);
-    if($controller === false){
-      throw new HttpNotFoundException($controller_class . 'controller is not found.');
-    }
-
-    $content = $controller->run($action, $params);
-
-    $this->response->setContent($content);
-
-    // ~ucfirstメソッド~
-    //先頭の文字を大文字に変える関数
-    // ルーティングでは小文字のため
-  }
-
-  // メソッドの中でコントローラークラスを生成する担当
-  public function findController($controller_class)
-  {
-    if(!class_exists($controller_class)){//コントローラークラスが読み込まれていない場合、クラスファイルを読み込む
-      $controller_file = $this->getControllerDir() . '/' . $controller_class . '.php';
-      // ディレクトリ/コントローラー名/.php
-      if(!is_readable($controller_file)){
-        return false;//なければ
-      }else{
-        require_once $controller_file;//あれば読み込む
-
-        if(!class_exists($controller_class)){
-          return false;
-        }
-      }
-    }
-
-    return new $controller_class($this);//
-
-    // ~class_exists()~
-    // クラスが定義済みかどうかを確認する
+    /* "<<<" ヒアドキュメント*
+      長い文字列を変数に代入する場合に使用する
+    */
   }
 
 }

@@ -1,5 +1,8 @@
 <?php
-
+/*
+ * HTTPヘッダとHTMLなどのコンテンツを返す
+ * HTTPヘッダを送信するためにheader()関数を使って送信する
+ */
 class Response
 {
   protected $content;
@@ -7,11 +10,11 @@ class Response
   protected $status_text = 'OK';
   protected $http_headers = array();
 
-  // 各プロパティに設定された値を元にレスポンスの送信を行う
+  //上記プロパティに設定された値を元にレスポンスの送信を行う
   public function send()
   {
     // HTTPプロトコルのバージョンを指定、ステータスコード、テキスト
-    header('HTTP/1.1' . $this->status_code . ' ' . $this->status_text);
+    header('HTTP/1.1' . $this->status_code . ' ' . $this->status_text);//
 
     foreach($this->http_headers as $name => $value){
       header($name . ': ' . $value);
